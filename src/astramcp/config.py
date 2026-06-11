@@ -129,19 +129,16 @@ def list_group_names() -> list[str]:
     return list(get_groups().keys())
 
 
-def get_agents_for_group(group_name: str) -> list[tuple[str, str, dict, dict]]:
+def _resolve_refs(refs: list[str]) -> list[tuple[str, str, dict, dict]]:
     """
-    Resolve agents for a group.
+    Resolve agent references from a list of "server/alias" strings.
 
     Returns list of (server_name, alias, agent_cfg, server_cfg).
     Skips references that can't be resolved.
     """
-    group = get_group(group_name)
-    if group is None:
-        return []
     servers = get_servers()
     result = []
-    for ref in group.get("agents", []):
+    for ref in refs:
         parts = str(ref).split("/", 1)
         if len(parts) != 2:
             continue
@@ -154,6 +151,32 @@ def get_agents_for_group(group_name: str) -> list[tuple[str, str, dict, dict]]:
             continue
         result.append((server_name, alias, agent_cfg, server_cfg))
     return result
+
+
+def get_agents_for_group(group_name: str) -> list[tuple[str, str, dict, dict]]:
+    """
+    Resolve agents for a group (from the 'agents' list).
+
+    Returns list of (server_name, alias, agent_cfg, server_cfg).
+    Skips references that can't be resolved.
+    """
+    group = get_group(group_name)
+    if group is None:
+        return []
+    return _resolve_refs(group.get("agents", []))
+
+
+def get_direct_agents_for_group(group_name: str) -> list[tuple[str, str, dict, dict]]:
+    """
+    Resolve direct-tool agents for a group (from the 'direct_tools' list).
+
+    Returns list of (server_name, alias, agent_cfg, server_cfg).
+    Skips references that can't be resolved.
+    """
+    group = get_group(group_name)
+    if group is None:
+        return []
+    return _resolve_refs(group.get("direct_tools", []))
 
 
 # ---------------------------------------------------------------------------

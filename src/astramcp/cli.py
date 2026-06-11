@@ -98,10 +98,13 @@ def daemon(
 ):
     """Start daemon HTTP server for AstrBot agents.
 
-    Serves all configured groups and handles background tasks.
+    Serves all configured groups via dynamic MCP routing at /mcp/<group>.
+    Handles background tasks and provides task streaming via SSE.
     Required for async/background agent calls from mcp mode.
 
     Reload config: SIGHUP or POST /api/reload
+    Tasks API:    GET /api/tasks
+    Stream:       GET /api/tasks/<task_id>/stream
     """
     groups = cfg.list_group_names()
     if group and group not in groups:

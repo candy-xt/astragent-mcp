@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -13,6 +14,41 @@ from pathlib import Path
 from typing import Callable
 
 import httpx
+
+
+def _extract_text(raw: str) -> str:
+    """Try to extract plain text from a possible JSON-wrapped AstrBot response.
+
+    AstrBot's SSE ``complete`` event may return ``data`` as a JSON string
+    like ``{"content": "...", "thinking": "..."}``.  If so, extract the
+    ``content`` field; otherwise return *raw* as-is.
+    """
+    if not raw or raw.isspace():
+        return raw
+    # Quick check: does it look like JSON?
+    stripped = raw.strip()
+    if not (stripped.startswith("{") or stripped.startswith("[")):
+        return raw
+    try:
+        obj = json.loads(stripped)
+    except json.JSONDecodeError:
+        return raw
+    if isinstance(obj, dict):
+        # AstrBot often wraps the answer under "content"
+        for key in ("content", "message", "reply", "text", "answer", "data", "result"):
+            val = obj.get(key)
+            if val and isinstance(val, str):
+                # Recursively unwrap if the value is itself JSON-encoded
+                if (val.startswith("{") or val.startswith("[")) and '"' in val[:80]:
+                    inner = _extract_text(val)
+                    if inner != val:
+                        return inner
+                return val
+        # Fallback: concatenate all string values
+        parts = [str(v) for v in obj.values() if isinstance(v, str) and v]
+        if parts:
+            return "\n".join(parts)
+    return raw
 
 _TASK_TTL = 3600 * 24 * 7  # keep tasks for 7 days
 
@@ -127,7 +163,22 @@ class TaskStore:
     def list_by_profile(self, profile: str) -> list[BackgroundTask]:
         with self._lock, self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM tasks WHERE profile = ?", (profile,)
+                "SELECT * FROM tasks WHERE profile = ? ORDER BY created_at DESC", (profile,)
+            ).fetchall()
+        return [self._row_to_task(r) for r in rows]
+
+    def list_tasks(self, limit: int = 100) -> list[BackgroundTask]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [self._row_to_task(r) for r in rows]
+
+    def list_by_group(self, group: str, limit: int = 100) -> list[BackgroundTask]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE profile = ? ORDER BY created_at DESC LIMIT ?",
+                (group, limit),
             ).fetchall()
         return [self._row_to_task(r) for r in rows]
 
@@ -197,7 +248,12 @@ class AstrBotClient:
         session_id: str | None = None,
         timeout: int = 60,
     ) -> str:
-        """POST /api/v1/chat — async SSE stream, returns complete text."""
+        """POST /api/v1/chat — async SSE stream, returns complete plain-text.
+
+        Supports both ``delta`` streaming chunks and ``complete`` events.
+        If the final data is JSON-encoded, ``_extract_text`` is used to
+        return plain text.
+        """
         payload: dict = {
             "message": message,
             "username": self.username,
@@ -210,7 +266,7 @@ class AstrBotClient:
         if config_name and not config_id:
             payload["config_name"] = config_name
 
-        final_text: str = ""
+        accumulated: str = ""
         async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream(
                 "POST",
@@ -230,14 +286,18 @@ class AstrBotClient:
                     except json.JSONDecodeError:
                         continue
                     t = obj.get("type", "")
-                    if t == "complete":
-                        final_text = obj.get("data", "")
+                    if t == "delta":
+                        chunk = obj.get("data", "")
+                        if chunk:
+                            accumulated += chunk
+                    elif t == "complete":
+                        accumulated = obj.get("data", "")
                     elif t == "error":
                         raise RuntimeError(
                             obj.get("data") or obj.get("message") or "AstrBot error"
                         )
 
-        return final_text
+        return _extract_text(accumulated)
 
     def chat(
         self,
@@ -269,7 +329,11 @@ class AstrBotClient:
         agent: str = "",
         on_done: Callable[[BackgroundTask], None] | None = None,
     ) -> BackgroundTask:
-        """Fire-and-forget chat. Returns a BackgroundTask immediately."""
+        """Fire-and-forget chat with streaming. Returns a BackgroundTask immediately.
+
+        The task store is updated incrementally as SSE chunks arrive,
+        enabling real-time monitoring via the daemon's SSE endpoint.
+        """
         task = task_store.create(
             session_id=session_id or f"astramcp_bg_{uuid.uuid4()}",
             profile=profile,
@@ -279,16 +343,17 @@ class AstrBotClient:
         def _run() -> None:
             task_store.update(task.task_id, status=TaskStatus.RUNNING)
             try:
-                result = self.chat(
+                final_text = self._chat_streaming(
                     message=message,
                     config_id=config_id,
                     config_name=config_name,
                     session_id=task.session_id,
+                    task_id=task.task_id,
                     timeout=300,
                 )
                 task_store.update(
                     task.task_id,
-                    result=result,
+                    result=final_text,
                     status=TaskStatus.DONE,
                     finished_at=time.time(),
                 )
@@ -305,3 +370,68 @@ class AstrBotClient:
 
         threading.Thread(target=_run, daemon=True).start()
         return task
+
+    def _chat_streaming(
+        self,
+        message: str,
+        config_id: str | None = None,
+        config_name: str | None = None,
+        session_id: str | None = None,
+        task_id: str | None = None,
+        timeout: int = 300,
+    ) -> str:
+        """Consume SSE stream and update task store with partial results."""
+        payload: dict = {
+            "message": message,
+            "username": self.username,
+            "enable_streaming": True,
+        }
+        if session_id:
+            payload["session_id"] = session_id
+        if config_id:
+            payload["config_id"] = config_id
+        if config_name and not config_id:
+            payload["config_name"] = config_name
+
+        accumulated = ""
+
+        async def _stream() -> str:
+            nonlocal accumulated
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/api/v1/chat",
+                    headers=self._headers(),
+                    json=payload,
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[5:].strip()
+                        if not raw or raw == "[DONE]":
+                            continue
+                        try:
+                            obj = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        t = obj.get("type", "")
+                        if t == "delta":
+                            chunk = obj.get("data", "")
+                            if chunk:
+                                accumulated += chunk
+                                if task_id:
+                                    task_store.update(task_id, result=accumulated)
+                        elif t == "complete":
+                            final = obj.get("data", "")
+                            accumulated = final
+                            if task_id:
+                                task_store.update(task_id, result=accumulated)
+                        elif t == "error":
+                            raise RuntimeError(
+                                obj.get("data") or obj.get("message") or "AstrBot error"
+                            )
+            return _extract_text(accumulated)
+
+        import asyncio
+        return asyncio.run(_stream())

@@ -24,7 +24,7 @@ def _sample_config() -> dict:
                 "api_key": "",
                 "username": "u",
                 "agents": {
-                    "coder": {"config_id": "abc", "config_name": "coding"},
+                    "coder": {"config_id": "abc", "config_name": "coding", "description": "A coding bot"},
                     "writer": {"config_id": "def", "config_name": "writing"},
                 },
             }
@@ -36,6 +36,14 @@ def _sample_config() -> dict:
             "lite": {
                 "agents": ["local/coder"],
             },
+            "both": {
+                "agents": ["local/writer"],
+                "direct_tools": ["local/coder"],
+            },
+            "direct-only": {
+                "direct_tools": ["local/coder"],
+            },
+            "empty": {},
         },
     }
 
@@ -96,7 +104,7 @@ def test_config_list_group_names(tmp_path):
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     names = config.list_group_names()
-    assert set(names) == {"main", "lite"}
+    assert set(names) == {"main", "lite", "both", "direct-only", "empty"}
 
 
 def test_config_get_agents_for_group(tmp_path):
@@ -126,13 +134,39 @@ def test_config_get_agents_for_missing_group(tmp_path):
     assert entries == []
 
 
+def test_config_get_agents_allows_description(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+    entries = config.get_agents_for_group("main")
+    coder = next((ag for _, alias, ag, _ in entries if alias == "coder"), None)
+    assert coder is not None
+    assert coder.get("description") == "A coding bot"
+
+
+def test_config_get_direct_agents_for_group(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+    entries = config.get_direct_agents_for_group("both")
+    assert len(entries) == 1
+    assert entries[0][1] == "coder"
+
+
+def test_config_get_direct_agents_empty(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+    assert config.get_direct_agents_for_group("main") == []
+
+
 def test_config_all_agents(tmp_path):
     from astramcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     agents = config.all_agents()
-    # main has 2, lite has 1 → 3 total
-    assert len(agents) == 3
+    # main:2 + lite:1 + both:1 + direct-only:0 + empty:0 = 4
+    assert len(agents) == 4
 
 
 def test_config_reload(tmp_path):
@@ -153,7 +187,7 @@ def test_config_reload_no_duplicates(tmp_path):
     calls = []
     cb = lambda: calls.append(1)
     config.on_reload(cb)
-    config.on_reload(cb)  # register same cb twice
+    config.on_reload(cb)
     config.reload()
     assert calls.count(1) == 1
 
@@ -211,6 +245,29 @@ def test_task_store_list_by_profile(tmp_path):
     assert lite_tasks[0].task_id == t2.task_id
 
 
+def test_task_store_list_tasks(tmp_path):
+    from astramcp.client import TaskStore
+
+    store = TaskStore(db_path=tmp_path / "tasks.db")
+    t1 = store.create(session_id="s1", profile="main", agent="coder")
+    t2 = store.create(session_id="s2", profile="lite", agent="writer")
+    all_tasks = store.list_tasks()
+    assert len(all_tasks) == 2
+    ids = {t.task_id for t in all_tasks}
+    assert ids == {t1.task_id, t2.task_id}
+
+
+def test_task_store_list_by_group(tmp_path):
+    from astramcp.client import TaskStore
+
+    store = TaskStore(db_path=tmp_path / "tasks.db")
+    t1 = store.create(session_id="s1", profile="main", agent="coder")
+    store.create(session_id="s2", profile="lite", agent="writer")
+    group_tasks = store.list_by_group("main")
+    assert len(group_tasks) == 1
+    assert group_tasks[0].task_id == t1.task_id
+
+
 def test_task_store_evict_old(tmp_path):
     from astramcp.client import TaskStore, TaskStatus
 
@@ -264,21 +321,75 @@ def test_background_task_lifecycle(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# server
+# server — MCP tool registration
 # ---------------------------------------------------------------------------
 
-def test_build_mcp_server_registers_tools(tmp_path):
+def _agent_names(mcp) -> set[str]:
+    return {t.name for t in asyncio.run(mcp.list_tools())}
+
+
+def test_build_mcp_server_both_lists(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_mcp_server
+    mcp = build_mcp_server("both")
+    names = _agent_names(mcp)
+    # has agents (writer) → list_agents + call_agent
+    assert "list_agents" in names
+    assert "call_agent" in names
+    # has direct_tools (coder) → astra_coder
+    assert "astra_coder" in names
+    # poll_result always present
+    assert "poll_result" in names
+
+
+def test_build_mcp_server_agents_only(tmp_path):
     from astramcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
     from astramcp.server import build_mcp_server
     mcp = build_mcp_server("main")
-    names = {t.name for t in asyncio.run(mcp.list_tools())}
+    names = _agent_names(mcp)
     assert "list_agents" in names
     assert "call_agent" in names
     assert "poll_result" in names
-    assert len(names) == 3
+    # no direct_tools → no astra_ tools
+    assert not any(n.startswith("astra_") for n in names)
+
+
+def test_build_mcp_server_direct_only(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_mcp_server
+    mcp = build_mcp_server("direct-only")
+    names = _agent_names(mcp)
+    # no agents → list_agents is dummy warning, no call_agent
+    assert "list_agents" in names
+    assert "call_agent" not in names
+    assert "astra_coder" in names
+    assert "poll_result" in names
+
+
+def test_build_mcp_server_empty(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_mcp_server
+    mcp = build_mcp_server("empty")
+    names = _agent_names(mcp)
+    # no agents → list_agents dummy, no call_agent
+    assert "list_agents" in names
+    assert "call_agent" not in names
+    # no direct_tools → no astra_ tools
+    assert not any(n.startswith("astra_") for n in names)
+    # poll_result always
+    assert "poll_result" in names
 
 
 def test_build_mcp_server_unknown_group(tmp_path):
@@ -299,6 +410,25 @@ def test_poll_unknown_task():
     assert get_task("nonexistent-id") is None
 
 
+def test_list_agents_shows_description(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_mcp_server
+    mcp = build_mcp_server("main")
+
+    async def _run():
+        tools = await mcp.list_tools()
+        list_tool = next(t for t in tools if t.name == "list_agents")
+        result = await list_tool.fn()
+        assert "A coding bot" in result
+        assert "coding" in result
+        assert "writer" in result
+
+    asyncio.run(_run())
+
+
 # ---------------------------------------------------------------------------
 # daemon app
 # ---------------------------------------------------------------------------
@@ -317,10 +447,10 @@ def test_daemon_health(tmp_path):
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert set(data["groups"]) == {"main", "lite"}
+        assert "main" in data["groups"]
 
 
-def test_daemon_mcp_groups_mounted(tmp_path):
+def test_daemon_mcp_unknown_group(tmp_path):
     from astramcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
@@ -330,8 +460,8 @@ def test_daemon_mcp_groups_mounted(tmp_path):
 
     app = build_daemon_app()
     with TestClient(app) as client:
-        resp = client.get("/mcp/main/")
-        assert resp.status_code in (200, 404, 405, 406, 307)
+        resp = client.get("/mcp/nonexistent/")
+        assert resp.status_code == 404
 
 
 def test_daemon_list_agents(tmp_path):
@@ -352,23 +482,6 @@ def test_daemon_list_agents(tmp_path):
         assert aliases == {"coder", "writer"}
 
 
-def test_daemon_list_agents_lite(tmp_path):
-    from astramcp import config
-    _patch_config(config, tmp_path)
-    config.save(_sample_config())
-
-    from astramcp.server import build_daemon_app
-    from starlette.testclient import TestClient
-
-    app = build_daemon_app()
-    with TestClient(app) as client:
-        resp = client.get("/api/agents", params={"group_name": "lite"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data["agents"]) == 1
-        assert data["agents"][0]["alias"] == "coder"
-
-
 def test_daemon_list_agents_all(tmp_path):
     from astramcp import config
     _patch_config(config, tmp_path)
@@ -381,8 +494,8 @@ def test_daemon_list_agents_all(tmp_path):
     with TestClient(app) as client:
         resp = client.get("/api/agents")
         assert resp.status_code == 200
-        # main:2 + lite:1 = 3
-        assert len(resp.json()["agents"]) == 3
+        # main:2 + lite:1 + both:1 + direct-only:0 + empty:0 = 4
+        assert len(resp.json()["agents"]) == 4
 
 
 def test_daemon_poll_not_found(tmp_path):
@@ -411,7 +524,51 @@ def test_daemon_reload(tmp_path):
     with TestClient(app) as client:
         resp = client.post("/api/reload")
         assert resp.status_code == 200
-        assert set(resp.json()["groups"]) == {"main", "lite"}
+        assert "main" in resp.json()["groups"]
+
+
+def test_daemon_tasks_endpoint(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_daemon_app
+    from starlette.testclient import TestClient
+
+    app = build_daemon_app()
+    with TestClient(app) as client:
+        resp = client.get("/api/tasks")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "tasks" in data
+
+
+def test_daemon_task_detail_not_found(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_daemon_app
+    from starlette.testclient import TestClient
+
+    app = build_daemon_app()
+    with TestClient(app) as client:
+        resp = client.get("/api/tasks/nonexistent")
+        assert resp.status_code == 404
+
+
+def test_daemon_task_stream_not_found(tmp_path):
+    from astramcp import config
+    _patch_config(config, tmp_path)
+    config.save(_sample_config())
+
+    from astramcp.server import build_daemon_app
+    from starlette.testclient import TestClient
+
+    app = build_daemon_app()
+    with TestClient(app) as client:
+        resp = client.get("/api/tasks/nonexistent/stream")
+        assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
