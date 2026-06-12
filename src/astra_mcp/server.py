@@ -8,8 +8,8 @@ import json
 import time
 from typing import Any
 
-from astramcp import config as cfg
-from astramcp.client import (
+from astra_mcp import config as cfg
+from astra_mcp.client import (
     AstrBotClient,
     TaskStatus,
     get_task,
@@ -25,7 +25,7 @@ def _make_client(server_cfg: dict) -> AstrBotClient:
     return AstrBotClient(
         base_url=server_cfg.get("base_url", "http://localhost:6185"),
         api_key=server_cfg.get("api_key", ""),
-        username=server_cfg.get("username", "astramcp"),
+        username=server_cfg.get("username", "astra_mcp"),
     )
 
 
@@ -46,7 +46,7 @@ def build_mcp_server(group: str) -> FastMCP:
             f"Group '{group}' not found. Available: {', '.join(cfg.list_group_names())}"
         )
 
-    mcp = FastMCP(f"astramcp-{group}")
+    mcp = FastMCP(f"astra_mcp-{group}")
 
     # Resolve agent lists fresh from config each time
     agents = cfg.get_agents_for_group(group)
@@ -376,20 +376,20 @@ def build_daemon_app(group: str | None = None) -> Any:
                 evt.set()
             _lifespan_stop_events.clear()
 
-    app = FastAPI(title="astramcp daemon", lifespan=combined_lifespan)
+    app = FastAPI(title="astra_mcp daemon", lifespan=combined_lifespan)
 
     # ------------------------------------------------------------------
     # Config reload handler (called from watcher thread → bridge to async)
     # ------------------------------------------------------------------
     def _on_config_reload() -> None:
-        print("[astramcp] Config file changed — rebuilding MCP apps ...")
+        print("[astra_mcp] Config file changed — rebuilding MCP apps ...")
         _rebuild_all_groups()
         if _main_loop is not None and not _main_loop.is_closed():
             fut = asyncio.run_coroutine_threadsafe(
                 _sync_mounts_and_lifespans(app), _main_loop
             )
             fut.result(timeout=10)
-        print(f"[astramcp] Reload complete. Groups: {', '.join(cfg.list_group_names()) or '(none)'}")
+        print(f"[astra_mcp] Reload complete. Groups: {', '.join(cfg.list_group_names()) or '(none)'}")
 
     cfg.on_reload(_on_config_reload)
 
@@ -422,12 +422,12 @@ def build_daemon_app(group: str | None = None) -> Any:
     @app.post("/api/reload")
     async def api_reload() -> dict:
         """Force reload config and rebuild MCP apps."""
-        print("[astramcp] Reload triggered via API — rebuilding ...")
+        print("[astra_mcp] Reload triggered via API — rebuilding ...")
         cfg.reload()
         _rebuild_all_groups()
         await _sync_mounts_and_lifespans(app)
         groups = cfg.list_group_names()
-        print(f"[astramcp] Reload complete. Groups: {', '.join(groups) or '(none)'}")
+        print(f"[astra_mcp] Reload complete. Groups: {', '.join(groups) or '(none)'}")
         return {"status": "ok", "groups": groups}
 
     @app.get("/api/poll/{task_id}")
@@ -548,13 +548,13 @@ def run_daemon(group: str | None, host: str = "127.0.0.1", port: int = 18765) ->
     app = build_daemon_app(group)
 
     groups = cfg.list_group_names()
-    print(f"[astramcp] Daemon starting on http://{host}:{port}")
+    print(f"[astra_mcp] Daemon starting on http://{host}:{port}")
     targets = [group] if group else groups
     for g in targets:
-        print(f"[astramcp]   MCP endpoint: http://{host}:{port}/mcp/{g}")
-    print(f"[astramcp]   Tasks API:     http://{host}:{port}/api/tasks")
-    print(f"[astramcp]   Task stream:   http://{host}:{port}/api/tasks/<task_id>/stream")
-    print(f"[astramcp] Reload: SIGHUP or POST /api/reload")
+        print(f"[astra_mcp]   MCP endpoint: http://{host}:{port}/mcp/{g}")
+    print(f"[astra_mcp]   Tasks API:     http://{host}:{port}/api/tasks")
+    print(f"[astra_mcp]   Task stream:   http://{host}:{port}/api/tasks/<task_id>/stream")
+    print(f"[astra_mcp] Reload: SIGHUP or POST /api/reload")
 
     try:
         uvicorn.run(app, host=host, port=port, log_level="info")

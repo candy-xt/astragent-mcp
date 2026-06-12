@@ -1,4 +1,4 @@
-"""Tests for astramcp — no live AstrBot connection required."""
+"""Tests for astra_mcp — no live AstrBot connection required."""
 
 from __future__ import annotations
 
@@ -53,14 +53,14 @@ def _sample_config() -> dict:
 # ---------------------------------------------------------------------------
 
 def test_config_load_defaults(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     data = config.load()
     assert data == {"servers": {}, "groups": {}}
 
 
 def test_config_add_and_get_server(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.add_server("local", {
         "base_url": "http://localhost:6185",
@@ -75,7 +75,7 @@ def test_config_add_and_get_server(tmp_path):
 
 
 def test_config_remove_server(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.add_server("todel", {"base_url": "http://x", "api_key": "", "username": "u", "agents": {}})
     config.remove_server("todel")
@@ -83,7 +83,7 @@ def test_config_remove_server(tmp_path):
 
 
 def test_config_add_and_get_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     grp = config.get_group("main")
@@ -92,7 +92,7 @@ def test_config_add_and_get_group(tmp_path):
 
 
 def test_config_remove_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     config.remove_group("lite")
@@ -100,7 +100,7 @@ def test_config_remove_group(tmp_path):
 
 
 def test_config_list_group_names(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     names = config.list_group_names()
@@ -108,7 +108,7 @@ def test_config_list_group_names(tmp_path):
 
 
 def test_config_get_agents_for_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     entries = config.get_agents_for_group("main")
@@ -118,7 +118,7 @@ def test_config_get_agents_for_group(tmp_path):
 
 
 def test_config_get_agents_for_group_lite(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     entries = config.get_agents_for_group("lite")
@@ -127,7 +127,7 @@ def test_config_get_agents_for_group_lite(tmp_path):
 
 
 def test_config_get_agents_for_missing_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     entries = config.get_agents_for_group("nonexistent")
@@ -135,7 +135,7 @@ def test_config_get_agents_for_missing_group(tmp_path):
 
 
 def test_config_get_agents_allows_description(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     entries = config.get_agents_for_group("main")
@@ -145,7 +145,7 @@ def test_config_get_agents_allows_description(tmp_path):
 
 
 def test_config_get_direct_agents_for_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     entries = config.get_direct_agents_for_group("both")
@@ -154,14 +154,14 @@ def test_config_get_direct_agents_for_group(tmp_path):
 
 
 def test_config_get_direct_agents_empty(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     assert config.get_direct_agents_for_group("main") == []
 
 
 def test_config_all_agents(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
     agents = config.all_agents()
@@ -170,7 +170,7 @@ def test_config_all_agents(tmp_path):
 
 
 def test_config_reload(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save({"servers": {}, "groups": {}})
     callbacks_called = []
@@ -181,7 +181,7 @@ def test_config_reload(tmp_path):
 
 def test_config_reload_no_duplicates(tmp_path):
     """on_reload should not register the same callback twice."""
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save({"servers": {}, "groups": {}})
     calls = []
@@ -197,19 +197,19 @@ def test_config_reload_no_duplicates(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_client_headers_with_key():
-    from astramcp.client import AstrBotClient
+    from astra_mcp.client import AstrBotClient
     c = AstrBotClient("http://localhost:6185", "mykey", "u")
     assert c._headers()["Authorization"] == "Bearer mykey"
 
 
 def test_client_headers_no_key():
-    from astramcp.client import AstrBotClient
+    from astra_mcp.client import AstrBotClient
     c = AstrBotClient("http://localhost:6185", "", "u")
     assert "Authorization" not in c._headers()
 
 
 def test_task_store_lifecycle(tmp_path):
-    from astramcp.client import TaskStore, TaskStatus
+    from astra_mcp.client import TaskStore, TaskStatus
 
     store = TaskStore(db_path=tmp_path / "tasks.db")
     task = store.create(session_id="test-sid", profile="main", agent="coder")
@@ -229,7 +229,7 @@ def test_task_store_lifecycle(tmp_path):
 
 
 def test_task_store_list_by_profile(tmp_path):
-    from astramcp.client import TaskStore, TaskStatus
+    from astra_mcp.client import TaskStore, TaskStatus
 
     store = TaskStore(db_path=tmp_path / "tasks.db")
     t1 = store.create(session_id="s1", profile="main", agent="coder")
@@ -246,7 +246,7 @@ def test_task_store_list_by_profile(tmp_path):
 
 
 def test_task_store_list_tasks(tmp_path):
-    from astramcp.client import TaskStore
+    from astra_mcp.client import TaskStore
 
     store = TaskStore(db_path=tmp_path / "tasks.db")
     t1 = store.create(session_id="s1", profile="main", agent="coder")
@@ -258,7 +258,7 @@ def test_task_store_list_tasks(tmp_path):
 
 
 def test_task_store_list_by_group(tmp_path):
-    from astramcp.client import TaskStore
+    from astra_mcp.client import TaskStore
 
     store = TaskStore(db_path=tmp_path / "tasks.db")
     t1 = store.create(session_id="s1", profile="main", agent="coder")
@@ -269,7 +269,7 @@ def test_task_store_list_by_group(tmp_path):
 
 
 def test_task_store_evict_old(tmp_path):
-    from astramcp.client import TaskStore, TaskStatus
+    from astra_mcp.client import TaskStore, TaskStatus
 
     store = TaskStore(db_path=tmp_path / "tasks.db")
     t1 = store.create(session_id="s1")
@@ -280,7 +280,7 @@ def test_task_store_evict_old(tmp_path):
 
 
 def test_task_store_persistence(tmp_path):
-    from astramcp.client import TaskStore, TaskStatus
+    from astra_mcp.client import TaskStore, TaskStatus
 
     db = tmp_path / "tasks.db"
     store1 = TaskStore(db_path=db)
@@ -295,10 +295,10 @@ def test_task_store_persistence(tmp_path):
 
 
 def test_background_task_lifecycle(tmp_path):
-    from astramcp.client import AstrBotClient, TaskStatus, TaskStore
+    from astra_mcp.client import AstrBotClient, TaskStatus, TaskStore
 
     store = TaskStore(db_path=tmp_path / "tasks.db")
-    import astramcp.client as client_mod
+    import astra_mcp.client as client_mod
     orig_store = client_mod.task_store
     client_mod.task_store = store
     try:
@@ -329,11 +329,11 @@ def _agent_names(mcp) -> set[str]:
 
 
 def test_build_mcp_server_both_lists(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_mcp_server
+    from astra_mcp.server import build_mcp_server
     mcp = build_mcp_server("both")
     names = _agent_names(mcp)
     # has agents (writer) → list_agents + call_agent
@@ -346,11 +346,11 @@ def test_build_mcp_server_both_lists(tmp_path):
 
 
 def test_build_mcp_server_agents_only(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_mcp_server
+    from astra_mcp.server import build_mcp_server
     mcp = build_mcp_server("main")
     names = _agent_names(mcp)
     assert "list_agents" in names
@@ -361,11 +361,11 @@ def test_build_mcp_server_agents_only(tmp_path):
 
 
 def test_build_mcp_server_direct_only(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_mcp_server
+    from astra_mcp.server import build_mcp_server
     mcp = build_mcp_server("direct-only")
     names = _agent_names(mcp)
     # no agents → list_agents is dummy warning, no call_agent
@@ -376,11 +376,11 @@ def test_build_mcp_server_direct_only(tmp_path):
 
 
 def test_build_mcp_server_empty(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_mcp_server
+    from astra_mcp.server import build_mcp_server
     mcp = build_mcp_server("empty")
     names = _agent_names(mcp)
     # no agents → list_agents dummy, no call_agent
@@ -393,11 +393,11 @@ def test_build_mcp_server_empty(tmp_path):
 
 
 def test_build_mcp_server_unknown_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_mcp_server
+    from astra_mcp.server import build_mcp_server
     try:
         build_mcp_server("nonexistent")
         assert False, "Should have raised ValueError"
@@ -406,16 +406,16 @@ def test_build_mcp_server_unknown_group(tmp_path):
 
 
 def test_poll_unknown_task():
-    from astramcp.client import get_task
+    from astra_mcp.client import get_task
     assert get_task("nonexistent-id") is None
 
 
 def test_list_agents_shows_description(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_mcp_server
+    from astra_mcp.server import build_mcp_server
     mcp = build_mcp_server("main")
 
     async def _run():
@@ -434,11 +434,11 @@ def test_list_agents_shows_description(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_daemon_health(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -451,11 +451,11 @@ def test_daemon_health(tmp_path):
 
 
 def test_daemon_mcp_unknown_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -465,11 +465,11 @@ def test_daemon_mcp_unknown_group(tmp_path):
 
 
 def test_daemon_list_agents(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -483,11 +483,11 @@ def test_daemon_list_agents(tmp_path):
 
 
 def test_daemon_list_agents_all(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -499,11 +499,11 @@ def test_daemon_list_agents_all(tmp_path):
 
 
 def test_daemon_poll_not_found(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -513,11 +513,11 @@ def test_daemon_poll_not_found(tmp_path):
 
 
 def test_daemon_reload(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -528,11 +528,11 @@ def test_daemon_reload(tmp_path):
 
 
 def test_daemon_tasks_endpoint(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -544,11 +544,11 @@ def test_daemon_tasks_endpoint(tmp_path):
 
 
 def test_daemon_task_detail_not_found(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -558,11 +558,11 @@ def test_daemon_task_detail_not_found(tmp_path):
 
 
 def test_daemon_task_stream_not_found(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
-    from astramcp.server import build_daemon_app
+    from astra_mcp.server import build_daemon_app
     from starlette.testclient import TestClient
 
     app = build_daemon_app()
@@ -577,43 +577,43 @@ def test_daemon_task_stream_not_found(tmp_path):
 
 def test_cli_help():
     from typer.testing import CliRunner
-    from astramcp.cli import app
+    from astra_mcp.cli import app
     result = CliRunner().invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "daemon" in result.output
 
 
 def test_cli_mcp_unknown_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save({"servers": {}, "groups": {}})
 
     from typer.testing import CliRunner
-    from astramcp.cli import app
+    from astra_mcp.cli import app
     result = CliRunner().invoke(app, ["mcp", "nonexistent"])
     assert result.exit_code != 0
     assert "not found" in result.output
 
 
 def test_cli_config_list_empty(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save({"servers": {}, "groups": {}})
 
     from typer.testing import CliRunner
-    from astramcp.cli import app
+    from astra_mcp.cli import app
     result = CliRunner().invoke(app, ["config", "list"])
     assert result.exit_code == 0
     assert "No servers" in result.output
 
 
 def test_cli_config_list_with_data(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save(_sample_config())
 
     from typer.testing import CliRunner
-    from astramcp.cli import app
+    from astra_mcp.cli import app
     result = CliRunner().invoke(app, ["config", "list"])
     assert result.exit_code == 0
     assert "local" in result.output
@@ -622,24 +622,24 @@ def test_cli_config_list_with_data(tmp_path):
 
 
 def test_cli_config_reload(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save({"servers": {}, "groups": {}})
 
     from typer.testing import CliRunner
-    from astramcp.cli import app
+    from astra_mcp.cli import app
     result = CliRunner().invoke(app, ["config", "reload"])
     assert result.exit_code == 0
     assert "reloaded" in result.output
 
 
 def test_cli_daemon_unknown_group(tmp_path):
-    from astramcp import config
+    from astra_mcp import config
     _patch_config(config, tmp_path)
     config.save({"servers": {}, "groups": {}})
 
     from typer.testing import CliRunner
-    from astramcp.cli import app
+    from astra_mcp.cli import app
     result = CliRunner().invoke(app, ["daemon", "nonexistent"])
     assert result.exit_code != 0
     assert "not found" in result.output

@@ -1,4 +1,4 @@
-"""CLI entry point for astramcp."""
+"""CLI entry point for astra_mcp."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from pyclack.prompts import (
     text,
 )
 
-from astramcp import config as cfg
-from astramcp.server import run_daemon, run_mcp_stdio
+from astra_mcp import config as cfg
+from astra_mcp.server import run_daemon, run_mcp_stdio
 
 app = typer.Typer(
     name="astra",
@@ -25,7 +25,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-config_app = typer.Typer(help="Manage astramcp configuration.")
+config_app = typer.Typer(help="Manage astra_mcp configuration.")
 app.add_typer(config_app, name="config")
 
 
@@ -128,7 +128,7 @@ def config_init():
 
 
 async def _config_init_async():
-    intro("astramcp config wizard")
+    intro("astra_mcp config wizard")
 
     # Server name
     server_name = await text("Server name (e.g. local, home, work):", placeholder="local")
@@ -163,12 +163,12 @@ async def _config_init_async():
     api_key = str(api_key).strip()
 
     # username
-    username = await text("Username for chat sessions:", placeholder="astramcp")
+    username = await text("Username for chat sessions:", placeholder="astra_mcp")
     _check_cancel(username)
-    username = str(username).strip() or "astramcp"
+    username = str(username).strip() or "astra_mcp"
 
     # Fetch configs from AstrBot
-    from astramcp.client import AstrBotClient
+    from astra_mcp.client import AstrBotClient
     client = AstrBotClient(base_url=base_url, api_key=api_key, username=username)
 
     typer.echo("\nFetching agent configs from AstrBot...")

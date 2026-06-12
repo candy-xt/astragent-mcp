@@ -82,7 +82,7 @@ class TaskStore:
 
     def __init__(self, db_path: Path | None = None) -> None:
         if db_path is None:
-            db_path = Path.home() / ".astramcp" / "tasks.db"
+            db_path = Path.home() / ".astra_mcp" / "tasks.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = db_path
         self._lock = threading.Lock()
@@ -205,7 +205,7 @@ def get_task(task_id: str) -> BackgroundTask | None:
 # ---------------------------------------------------------------------------
 
 class AstrBotClient:
-    def __init__(self, base_url: str, api_key: str = "", username: str = "astramcp") -> None:
+    def __init__(self, base_url: str, api_key: str = "", username: str = "astra_mcp") -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.username = username
@@ -335,7 +335,7 @@ class AstrBotClient:
         enabling real-time monitoring via the daemon's SSE endpoint.
         """
         task = task_store.create(
-            session_id=session_id or f"astramcp_bg_{uuid.uuid4()}",
+            session_id=session_id or f"astra_mcp_bg_{uuid.uuid4()}",
             profile=profile,
             agent=agent,
         )

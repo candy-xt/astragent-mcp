@@ -1,4 +1,4 @@
-"""Config management — reads/writes ~/.astramcp/config.yaml with hot reload.
+"""Config management — reads/writes ~/.astra_mcp/config.yaml with hot reload.
 
 Schema:
   servers:
@@ -27,7 +27,7 @@ from typing import Any, Callable
 
 import yaml
 
-CONFIG_DIR = Path.home() / ".astramcp"
+CONFIG_DIR = Path.home() / ".astra_mcp"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 # Hot reload state
@@ -202,7 +202,7 @@ def get_profile(name: str) -> dict[str, Any] | None:
             "_server": server_name,
             "_base_url": server_cfg.get("base_url", ""),
             "_api_key": server_cfg.get("api_key", ""),
-            "_username": server_cfg.get("username", "astramcp"),
+            "_username": server_cfg.get("username", "astra_mcp"),
         }
     return {"agents": agents}
 
