@@ -1,5 +1,5 @@
 [project]
-name = "astra-mcp"
+name = "astragent-mcp"
 version = "0.1.1"
 description = "Expose AstrBot agents as MCP tools via CLI"
 requires-python = ">=3.13"
