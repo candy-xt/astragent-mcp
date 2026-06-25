@@ -423,7 +423,7 @@ def build_daemon_app(group: str | None = None) -> Any:
     async def api_reload() -> dict:
         """Force reload config and rebuild MCP apps."""
         print("[astra_mcp] Reload triggered via API — rebuilding ...")
-        cfg.reload()
+        cfg.load()
         _rebuild_all_groups()
         await _sync_mounts_and_lifespans(app)
         groups = cfg.list_group_names()
@@ -438,7 +438,7 @@ def build_daemon_app(group: str | None = None) -> Any:
         return {
             "task_id": task.task_id,
             "status": task.status.value,
-            "result": task.result if task.status == TaskStatus.DONE else task.result,
+            "result": task.result if task.status == TaskStatus.DONE else None,
             "error": task.error if task.status == TaskStatus.ERROR else None,
             "partial": task.result if task.status == TaskStatus.RUNNING else None,
         }

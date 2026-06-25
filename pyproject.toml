@@ -1,6 +1,6 @@
 [project]
 name = "astragent-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "Expose AstrBot agents as MCP tools via CLI"
 requires-python = ">=3.13"
 dependencies = [
